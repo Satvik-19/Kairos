@@ -1,358 +1,449 @@
 # KAIROS — Chaos Entropy Engine
 
-> Software-based cryptographic entropy from chaos theory.
-> Inspired by Cloudflare's lava lamp wall.
+**Software-generated cryptographic entropy derived from chaotic dynamical systems.**
 
-A Python library and live dashboard that harvests entropy from three independent
-chaotic systems, mixes it with OS randomness via SHA3-256 and HKDF, and produces
-cryptographically strong tokens — while an ML layer continuously monitors output
-quality in real time.
+Inspired by the physical entropy wall built by Cloudflare using lava lamps.
 
----
+KAIROS replicates the **philosophy of physical entropy generation** entirely in software by running multiple chaotic simulations whose states evolve with extreme sensitivity to initial conditions. These states are continuously mixed with operating system randomness using modern cryptographic primitives to produce **high-quality entropy streams suitable for tokens, keys, and secure seeding.**
 
-## What is this?
-
-Most software entropy comes entirely from the operating system's CSPRNG. That works,
-but it is a single point of trust. KAIROS takes a different approach: it runs three
-physically-inspired chaotic simulations in parallel — a double pendulum, a Lorenz
-attractor, and a Gray-Scott reaction-diffusion system — and continuously mixes their
-outputs with `os.urandom` using SHA3-256 at 20 Hz. The result is an entropy stream
-whose unpredictability is grounded in the sensitive dependence on initial conditions
-that defines chaos theory.
-
-The three engines were chosen deliberately. The double pendulum (integrated via
-4th-order Runge-Kutta) is a canonical example of a deterministic system with
-exponentially diverging trajectories. The Lorenz attractor (also RK4) lives on a
-strange attractor whose topology makes long-range prediction theoretically impossible.
-The Gray-Scott reaction-diffusion system (64x64 grid) produces Turing patterns whose
-fine-grained spatial state encodes enormous mixing capacity. Because all three systems
-evolve independently in separate daemon threads, the combined entropy source has no
-single failure mode.
-
-On top of the entropy pipeline sits a three-model ML layer trained on live engine
-output. A hybrid autoencoder detects anomalous patterns in the entropy stream — things
-such as a frozen simulation or a starved entropy pool. An LSTM network attempts to
-predict hash outputs from chaos-state history: when entropy is genuinely unpredictable
-this prediction fails at the theoretical ceiling, and the error is reported as a
-`prediction_resistance` score. A multi-layer perceptron classifies current entropy
-quality into four grades using both entropy output metrics and raw chaos state features.
-All three models run asynchronously and their results surface through the health
-endpoint every 5 seconds.
-
-KAIROS ships in two modes. As a pip-installable Python library it exposes a clean
-`EntropyEngine` API: `token()`, `api_key()`, `nonce()`, `seed_bytes()`, and `health()`.
-As a full-stack application it runs a FastAPI backend with REST and WebSocket endpoints,
-paired with a React dashboard that visualises all three chaos engines live on HTML5
-canvas — including the Turing patterns evolving in real time.
+The system also includes **machine learning based entropy health monitoring** and a **real-time visual dashboard** that renders the chaotic systems driving the entropy generation process.
 
 ---
 
-## Demo
+# Motivation
 
-![KAIROS ML Metrics](ml/KAIROS_ML_Metrics.png)
+Most applications rely exclusively on the operating system’s cryptographically secure random number generator (`/dev/urandom` or equivalent). While these generators are well designed, they represent a **single entropy trust source**.
 
-*ML pipeline training metrics — all values verified from live training runs on real engine output.*
+KAIROS introduces a **secondary entropy layer** generated from deterministic chaotic systems.
 
-Live demo: *add after deployment*
+Chaotic systems have a defining property:
+
+> **Sensitive dependence on initial conditions**
+A perturbation as small as `10⁻⁹` in initial state eventually produces completely different trajectories. This property makes chaotic systems valuable **entropy amplifiers**, converting microscopic perturbations into macroscopic unpredictability.
+By running multiple independent chaotic systems and combining their outputs with OS randomness, KAIROS creates a **hybrid entropy stream with multiple independent sources of unpredictability.**
 
 ---
 
-## Architecture
+# Core Design Principles
+
+KAIROS was designed around several engineering principles:
+
+**1. Multi-source entropy**
+Three independent chaotic systems run in parallel.
+**2. Continuous entropy refresh**
+Entropy is mixed at ~20 Hz.
+**3. Cryptographic mixing**
+All entropy passes through SHA3-256 before leaving the system.
+**4. Thread isolation**
+Each chaos engine runs in its own daemon thread.
+**5. Health monitoring**
+Entropy quality is continuously evaluated using statistical metrics and ML models.
+
+---
+
+# Chaos Engines
+Three independent dynamical systems serve as entropy sources.
+
+---
+
+## Double Pendulum
+A double pendulum is one of the canonical chaotic systems in classical mechanics.
+The system is described by coupled nonlinear differential equations:
+```
+θ₁'' = f(θ₁, θ₂, ω₁, ω₂)
+θ₂'' = g(θ₁, θ₂, ω₁, ω₂)
+```
+Even tiny perturbations in the initial angle or velocity cause exponential divergence in trajectories.
+
+### Implementation
+* Numerical integration: **4th-order Runge–Kutta (RK4)**
+* Simulation rate: ~50 FPS
+* Output features:
+  * θ₁, θ₂
+  * angular velocities
+  * energy fluctuations
+
+These values are continuously sampled and injected into the entropy pool.
+
+---
+
+## Lorenz Attractor
+The Lorenz system is defined by the famous equations:
 
 ```
-kairos-entropy  (pip package)
-├── DoublePendulumEngine     RK4, background thread, ~50 fps
-├── LorenzEngine             RK4, background thread, ~50 fps
-├── ReactionDiffusionEngine  Gray-Scott 64x64, background thread, ~50 fps
-├── EntropyPool              Thread-safe ring buffer, 1 024 bytes
-├── CryptoMixer              SHA3-256 + os.urandom + HKDF-SHA256
-├── HealthMonitor            Shannon entropy + chi-squared + ML inference
-└── PerturbationScheduler    Epsilon perturbations every 10 s
+dx/dt = σ(y − x)
+dy/dt = x(ρ − z) − y
+dz/dt = xy − βz
+```
+Typical parameters used:
 
-Optional server layer  (FastAPI)
-├── REST API    /token  /api-key  /nonce  /entropy  /health
-└── WebSocket   /ws/chaos (20 fps)   /ws/entropy (2 fps)
-    └── React Dashboard   live canvas · health panel · token generator
+```
+σ = 10
+ρ = 28
+β = 8/3
+```
+The resulting system evolves on a **strange attractor**, producing a trajectory that never repeats and cannot be predicted long-term.
 
-ML layer  (~7 700 labelled samples collected from live engine)
-├── Model 1  Hybrid anomaly detector
-│            Autoencoder (60-epoch, 780-dim) + pendulum motion check
-│            Detection: frozen_pendulum 100% · lorenz_runaway 100%
-│                       pool_starvation 100% · overall 76.8%
-├── Model 2  LSTM prediction resistance scorer
-│            30-step chaos history -> next-hash prediction
-│            Converges to 1/12 ceiling -> hash confirmed unpredictable
-└── Model 4  MLP quality classifier
-             8 features · 5-fold CV 78.6% · train accuracy 90%
-             critical recall 100% · good recall 100%
+### Implementation
+* RK4 integration
+* Continuous floating-point state extraction
+* Values quantized and fed into entropy mixer
+
+---
+
+## Reaction-Diffusion System
+The Gray-Scott reaction-diffusion model simulates chemical pattern formation.
+
+Equations:
+
+```
+∂U/∂t = Du∇²U − UV² + F(1 − U)
+∂V/∂t = Dv∇²V + UV² − (F + k)V
+```
+This system produces evolving **Turing patterns**, where tiny variations grow into complex spatial structures.
+
+### Implementation
+* Grid size: **64 × 64**
+* Laplacian stencil convolution
+* Pattern evolution at ~50 FPS
+
+The evolving grid state contains **thousands of degrees of freedom**, providing a rich entropy source.
+
+---
+## 🔄 Kairos Entropy Engine – System Workflow
+
+Kairos generates high-quality unpredictable entropy using chaotic physical simulations combined with cryptographic processing and ML-based monitoring. The system follows a multi-stage entropy pipeline designed for unpredictability, observability, and fail-safe operation.
+
+1. Chaos Entropy Sources
+
+Kairos derives entropy from three independent chaotic systems running in parallel:
+Double Pendulum – Highly sensitive to initial conditions. Tiny perturbations (ε = 1e-9) quickly diverge into unpredictable states.
+Lorenz Attractor – Chaotic differential equations producing complex trajectories in 3D phase space.
+Reaction-Diffusion System – Gray-Scott simulation generating evolving spatial patterns.
+
+The continuously changing states of these systems are converted into raw entropy bytes.
+
+2. Entropy Pool
+
+All entropy streams feed into a thread-safe entropy pool.
+Features:
+* 1024-byte ring buffer
+* Continuous entropy refresh
+* Aggregates output from all chaos engines
+This pool acts as the central source of randomness for the system.
+
+3. Cryptographic Mixing
+
+Before use, entropy passes through a cryptographic mixer:
+* SHA-256 hashing
+* OS randomness (os.urandom())
+This removes bias and strengthens unpredictability.
+
+4. Key Derivation
+
+Kairos uses HKDF-SHA256 to derive secure outputs such as:
+* Authentication tokens
+* API keys
+* Session identifiers
+* Cryptographic seeds
+
+5. Entropy Health Monitoring
+
+The system continuously evaluates entropy quality using:
+Shannon Entropy Score
+Chi-Squared Uniformity Test
+Duplicate Rate Detection
+
+If entropy quality drops below threshold, a fail-safe circuit breaker returns HTTP 503 to prevent weak randomness from being used.
+
+<img width="542" height="570" alt="image" src="https://github.com/user-attachments/assets/41035c8b-ea74-448d-aee6-d55fdc16c6ad" />
+
+
+# Entropy Pipeline
+
+All chaotic outputs are passed through a cryptographic entropy pipeline.
+```
+Chaotic Systems
+   │
+   ├─ Double Pendulum
+   ├─ Lorenz Attractor
+   └─ Reaction Diffusion
+        │
+        ▼
+Entropy Pool (ring buffer)
+        │
+        ▼
+Crypto Mixer
+ SHA3-256 + os.urandom
+        │
+        ▼
+HKDF-SHA256
+        │
+        ▼
+Secure Outputs
+```
+
+### Entropy Pool
+* Thread-safe ring buffer
+* Size: 1024 bytes
+* Receives entropy from all engines concurrently
+
+### Crypto Mixer
+Every mixing cycle:
+
+```
+entropy = SHA3_256(
+    chaos_bytes
+    + os.urandom()
+    + timestamp
+)
+```
+
+This ensures:
+* OS randomness is always included
+* raw chaos state never leaks directly
+
+### Key Derivation
+Output tokens are generated via **HKDF-SHA256** to prevent entropy pool exposure.
+
+---
+
+# Entropy Health Monitoring
+Entropy quality is continuously monitored using statistical metrics.
+
+### Shannon Entropy
+Measures information density of output stream.
+
+Ideal random data approaches:
+```
+H ≈ 1.0 per byte
+```
+
+### Chi-Squared Uniformity Test
+Detects biased byte distributions.
+
+### Duplicate Rate
+Tracks repeated byte sequences in recent output windows.
+
+---
+
+# Machine Learning Monitoring
+Three ML models monitor entropy generation.
+
+---
+## Model 1 — Hybrid Anomaly Detector
+
+Architecture:
+* Autoencoder (PyTorch)
+* Pendulum motion heuristic
+
+Input:
+* 60-step sliding window
+* 13 entropy features
+
+Detects:
+* frozen simulations
+* entropy starvation
+* runaway Lorenz states
+
+---
+## Model 2 — Prediction Resistance (LSTM)
+
+Purpose:
+Attempt to predict future entropy hashes from chaos state history.
+
+Architecture:
+
+```
+2-layer LSTM
+hidden size: 64
+sequence length: 30
+```
+If entropy is truly unpredictable, prediction error converges to the theoretical random baseline.
+
+---
+## Model 3 — Entropy Quality Classifier
+Architecture:
+```
+MLP
+8 input features
+hidden layers: 32 → 16
+```
+Classifies entropy health:
+* excellent
+* good
+* degraded
+* critical
+
+---
+
+# Dashboard
+The React dashboard visualizes entropy generation in real time.
+
+Features:
+* live double pendulum simulation
+* Lorenz attractor trajectory rendering
+* reaction-diffusion pattern evolution
+* entropy health metrics
+* token generator interface
+
+Visualization uses:
+* HTML5 Canvas
+* WebSocket streams
+* ~20 FPS update rate
+
+---
+
+# Architecture Overview
+
+```
+kairos-entropy (core library)
+
+engines/
+ ├─ double_pendulum.py
+ ├─ lorenz.py
+ └─ reaction_diffusion.py
+
+entropy/
+ ├─ entropy_pool.py
+ ├─ crypto_mixer.py
+ ├─ health_monitor.py
+ └─ perturbation_scheduler.py
+
+server/
+ ├─ FastAPI REST API
+ └─ WebSocket streaming
+
+ml/
+ ├─ data collection
+ ├─ model training
+ └─ inference pipeline
+
+src/
+ └─ React visualization dashboard
 ```
 
 ---
 
-## Quick Start
+# Quick Start
 
-### As a Python library
+### Install library
 
-```bash
+```
 pip install kairos-entropy
 ```
+
+### Usage
 
 ```python
 from kairos import EntropyEngine
 
 engine = EntropyEngine()
 
-token   = engine.token(32)         # 32-byte secure hex token
-api_key = engine.api_key()         # "krs_" prefixed 44-char key
-nonce   = engine.nonce()           # single-use hex nonce
-raw     = engine.seed_bytes(64)    # raw entropy bytes
-health  = engine.health()          # quality metrics dict
+token = engine.token(32)
+api_key = engine.api_key()
+nonce = engine.nonce()
+
+seed = engine.seed_bytes(64)
+health = engine.health()
 
 engine.shutdown()
 ```
 
-### Run the full dashboard
+---
 
-```bash
+# Running the Full Application
+
+```
 git clone https://github.com/Satvik-19/Kairos.git
 cd Kairos
-chmod +x start.sh
 ./start.sh
 ```
 
-| Service   | URL                          |
-|-----------|------------------------------|
-| Dashboard | http://localhost:3000        |
-| API docs  | http://localhost:8001/docs   |
-| Health    | http://localhost:8001/health |
+Services:
 
-### Manual setup
-
-```bash
-# Backend
-pip install -r requirements-server.txt
-pip install -e .
-uvicorn kairos.server.main:app --port 8001 --reload
-
-# Frontend  (separate terminal)
-npm install
-npm run dev
-```
+| Service   | URL                                                      |
+| --------- | -------------------------------------------------------- |
+| Dashboard | https://kairos-tawny-six.vercel.app/                     |
+| API       | https://kairos-nbux.onrender.com                         |
+| Docs      | https://kairos-nbux.onrender.com/docs                    |
 
 ---
 
-## Docker & Deployment
+# Docker Deployment
 
-### Run with Docker (backend only)
+Build container:
 
-```bash
+```
 docker build -t kairos .
+```
+
+Run container:
+
+```
 docker run -p 8000:8000 kairos
 ```
 
-Open `http://localhost:8000/docs` for the Swagger UI.
+---
 
-### Run full stack locally with Docker Compose
+# API Endpoints
 
-```bash
-docker compose up
-```
+| Endpoint   | Description                  |
+| ---------- | ---------------------------- |
+| `/token`   | Generate cryptographic token |
+| `/api-key` | Generate API key             |
+| `/nonce`   | Generate nonce               |
+| `/entropy` | Raw entropy pool             |
+| `/health`  | Entropy health metrics       |
 
-| Service   | URL                         |
-|-----------|-----------------------------|
-| API / WS  | http://localhost:8000       |
-| Swagger   | http://localhost:8000/docs  |
-| Dashboard | http://localhost:3000       |
+WebSocket streams:
 
-ML model weights (`.pt`, `.pkl`) are bind-mounted from `ml/models/` so you can
-retrain without rebuilding the image. JSON config files are baked into the image.
-
-### Deploy on Render
-
-**Backend — Web Service (Docker)**
-
-1. Push this repo to GitHub
-2. New Web Service → connect repo → select **Docker** as runtime
-3. Render auto-injects `PORT`; the container reads it via `${PORT:-8000}`
-4. No extra env vars required unless you add `GEMINI_API_KEY`
-
-**Frontend — Static Site**
-
-1. New Static Site → same repo
-2. Build command: `npm install && npm run build`
-3. Publish directory: `dist`
-4. Add env var: `VITE_BACKEND_URL=https://<your-backend>.onrender.com`
+| Endpoint      | Stream                 |
+| ------------- | ---------------------- |
+| `/ws/chaos`   | chaos engine states    |
+| `/ws/entropy` | entropy health metrics |
 
 ---
 
-## API Reference
+# Security Considerations
 
-### Python library
+KAIROS is **not intended to replace operating system randomness**.
 
-| Method | Returns | Notes |
-|--------|---------|-------|
-| `engine.token(length=32, format='hex')` | `str` | format: `hex` / `base64` / `uuid` |
-| `engine.api_key()` | `str` | `krs_` prefixed, 44 chars total |
-| `engine.nonce()` | `str` | single-use hex nonce |
-| `engine.seed_bytes(n)` | `bytes` | raw entropy bytes for seeding other RNGs |
-| `engine.health()` | `dict` | full quality metrics including ML fields |
-| `engine.get_engine_states()` | `dict` | live chaos state snapshot |
-| `engine.shutdown()` | `None` | graceful thread cleanup |
+Instead it acts as:
 
-### REST endpoints
+* entropy amplification layer
+* additional randomness source
+* research platform for chaos-based entropy systems
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /token?length=32&format=hex` | Generate a secure token |
-| `GET /api-key` | Generate a `krs_` prefixed API key |
-| `GET /nonce` | Generate a single-use nonce |
-| `GET /entropy` | Raw entropy pool sample |
-| `GET /health` | Full health + ML metrics |
-| `WS  /ws/chaos` | Live chaos engine states at 20 fps |
-| `WS  /ws/entropy` | Live entropy health metrics at 2 fps |
+For production cryptography, OS CSPRNG should remain the primary entropy source.
 
 ---
 
-## Entropy Health Metrics
+# Tech Stack
 
-```json
-{
-  "entropy_score":            0.992,
-  "distribution_uniformity":  0.981,
-  "duplicate_rate":           0.00008,
-  "health_status":            "excellent",
-  "ml_active":                true,
-  "anomaly_score":            0.0012,
-  "is_anomaly":               false,
-  "prediction_resistance":    0.085,
-  "health_confidence":        0.97
-}
-```
-
-`health_status` is set by the ML classifier when models are present, or by Shannon
-entropy thresholds as a rule-based fallback:
-
-| Status      | Entropy score | Meaning                          |
-|-------------|---------------|----------------------------------|
-| `excellent` | >= 0.99       | Full cryptographic quality       |
-| `good`      | >= 0.95       | High quality, minor degradation  |
-| `degraded`  | >= 0.90       | Reduced quality — investigate    |
-| `critical`  | < 0.90        | Pool starved or engine failed    |
+| Layer         | Technology            |
+| ------------- | --------------------- |
+| Simulation    | Python, NumPy         |
+| Cryptography  | SHA3-256, HKDF        |
+| ML            | PyTorch, scikit-learn |
+| Backend       | FastAPI               |
+| Dashboard     | React, Vite, Tailwind |
+| Visualization | HTML5 Canvas          |
+| Runtime       | Python 3.10+          |
 
 ---
 
-## ML Models
+# License
 
-**Model 1 — Hybrid Anomaly Detector**
-
-A PyTorch autoencoder (780-dim input = 60-step window x 13 features) trained on normal
-entropy and Lorenz state data. A separate analytical pendulum motion check handles the
-frozen pendulum case that autoencoders cannot detect — constant inputs reconstruct
-*better* than varying ones, producing lower reconstruction error than normal. Threshold
-calibrated at p95 of normal training data. Overall detection rate: **76.8%**.
-
-**Model 2 — LSTM Prediction Resistance Scorer**
-
-A two-layer LSTM (hidden=64) that takes 30 consecutive chaos state vectors and attempts
-to predict the next 32-byte hash output. After 40 training epochs it converges to
-MSE ~= 0.0848, matching the theoretical ceiling of 1/12 ~= 0.0833 for a uniform random
-variable. This is documented proof that the hash stream carries no exploitable predictive
-structure. Higher `prediction_resistance` = more genuinely unpredictable entropy.
-
-**Model 4 — MLP Quality Classifier**
-
-An 8-feature MLP (hidden 32->16) trained on entropy metrics plus chaos state features.
-State features were the key insight: entropy output alone cannot distinguish 3 of 4 fault
-modes from normal operation. `lorenz_z ~= 188` vs normal `~= 24` gives a 20-sigma
-discriminant for the runaway Lorenz fault; `omega1_roll_std = 0` exactly identifies a
-frozen pendulum. 5-fold CV: **78.6%**. Train accuracy: **90%**.
-
-### Retrain on your own system
-
-```bash
-python ml/collect_data.py      # ~20 min — live data collection from running engine
-python ml/eda.py                # feature validation and separability analysis
-python ml/model1_anomaly.py    # hybrid anomaly detector
-python ml/model2_predictor.py  # LSTM prediction resistance
-python ml/model4_classifier.py # MLP quality classifier
-```
-
-Model weights (`.pt`, `.pkl`) are excluded from git — only the small JSON config files
-are committed. Run the training scripts above to regenerate them locally.
+MIT License
 
 ---
 
-## Security Notes
+# Author
 
-KAIROS is an entropy *augmentation* layer, not a replacement for OS-level randomness.
-
-**What it provides:**
-- High-entropy seeding from three independent chaotic sources running in parallel
-- `os.urandom` injected at every SHA3-256 mix cycle — mixes *with* the OS RNG, not over it
-- HKDF-SHA256 key derivation preventing direct pool exposure
-- Epsilon perturbation scheduler preventing deterministic replay
-- ML-based real-time anomaly detection on entropy quality
-
-**What it does not replace:**
-- Hardware RNGs or HSMs in high-security production environments
-- `/dev/urandom` as a base entropy source
-
-For production use, treat Kairos output as additional entropy mixed into your existing
-RNG stack, not as a sole entropy source.
+Satvik
+GitHub: [https://github.com/Satvik-19](https://github.com/Satvik-19)
 
 ---
 
-## Project Structure
-
-```
-kairos/                  Python package (pip-installable)
-├── engines/             DoublePendulum, Lorenz, ReactionDiffusion
-├── entropy/             Pool, Mixer, HealthMonitor, Perturbation
-└── server/              FastAPI server — REST + WebSocket (optional)
-
-ml/                      ML pipeline
-├── collect_data.py      Live data collection from running engine
-├── eda.py               EDA + feature engineering
-├── model1_anomaly.py    Hybrid autoencoder + motion check training
-├── model2_predictor.py  LSTM training
-├── model4_classifier.py MLP classifier training
-├── inference.py         Runtime inference (loaded at server startup)
-├── models/              .json config files in git; .pt/.pkl excluded
-├── KAIROS_ML_Metrics.png  Training metrics visualisation
-└── ML_SUMMARY.md        Detailed model documentation
-
-src/                     React dashboard
-├── components/          Pendulum, Lorenz, ReactionDiff, EntropyHealth, TokenGenerator
-└── hooks/               useKairosSocket — reconnecting WebSocket client
-
-tests/                   pytest suite
-start.sh                 One-command local launch (backend + frontend)
-```
-
----
-
-## Stack
-
-| Layer            | Tech                                       |
-|------------------|--------------------------------------------|
-| Chaos simulation | Python, NumPy                              |
-| Entropy pipeline | SHA3-256, HKDF-SHA256, `os.urandom`        |
-| ML               | PyTorch 2.x, scikit-learn 1.7, pandas      |
-| Server           | FastAPI, uvicorn, WebSockets               |
-| Dashboard        | React 19, Vite, Tailwind CSS, Canvas API   |
-| Runtime          | Python 3.10+                               |
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
-
----
-
-## Author
-
-**Satvik**
-GitHub: [@Satvik-19](https://github.com/Satvik-19)
-
-*Built as a demonstration of chaos theory applied to cryptographic security.*
+**KAIROS demonstrates how chaotic dynamical systems can be used as a software-driven entropy source for cryptographic applications.**
