@@ -1,0 +1,55 @@
+# ── Version control ───────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Environment / secrets ────────────────────────────────────────────────────
+.env
+*.env
+.env.example
+
+# ── Frontend (not needed inside the backend container) ───────────────────────
+node_modules/
+src/
+index.html
+vite.config.ts
+tsconfig.json
+package.json
+package-lock.json
+dist/
+
+# ── ML data and binary model weights (large files) ───────────────────────────
+ml/data/
+ml/models/*.pt
+ml/models/*.pkl
+
+# ── Dev / CI artifacts ────────────────────────────────────────────────────────
+VALIDATION_REPORT.md
+kairos-prd-final.md
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo

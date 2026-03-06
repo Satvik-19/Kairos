@@ -141,6 +141,50 @@ npm run dev
 
 ---
 
+## Docker & Deployment
+
+### Run with Docker (backend only)
+
+```bash
+docker build -t kairos .
+docker run -p 8000:8000 kairos
+```
+
+Open `http://localhost:8000/docs` for the Swagger UI.
+
+### Run full stack locally with Docker Compose
+
+```bash
+docker compose up
+```
+
+| Service   | URL                         |
+|-----------|-----------------------------|
+| API / WS  | http://localhost:8000       |
+| Swagger   | http://localhost:8000/docs  |
+| Dashboard | http://localhost:3000       |
+
+ML model weights (`.pt`, `.pkl`) are bind-mounted from `ml/models/` so you can
+retrain without rebuilding the image. JSON config files are baked into the image.
+
+### Deploy on Render
+
+**Backend — Web Service (Docker)**
+
+1. Push this repo to GitHub
+2. New Web Service → connect repo → select **Docker** as runtime
+3. Render auto-injects `PORT`; the container reads it via `${PORT:-8000}`
+4. No extra env vars required unless you add `GEMINI_API_KEY`
+
+**Frontend — Static Site**
+
+1. New Static Site → same repo
+2. Build command: `npm install && npm run build`
+3. Publish directory: `dist`
+4. Add env var: `VITE_BACKEND_URL=https://<your-backend>.onrender.com`
+
+---
+
 ## API Reference
 
 ### Python library
