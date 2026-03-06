@@ -1,0 +1,9 @@
+numpy>=1.26
+cryptography>=41.0
+fastapi>=0.104
+uvicorn[standard]>=0.24
+websockets>=12.0
+# ML dependencies — optional; install before running ml/ scripts
+torch>=2.0
+scikit-learn>=1.3
+pandas>=2.0

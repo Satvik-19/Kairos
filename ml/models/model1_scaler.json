@@ -1,0 +1,52 @@
+{
+  "mean": {
+    "entropy_score": 0.9764481243816255,
+    "distribution_uniformity": 0.9990355568904593,
+    "duplicate_rate": 0.0,
+    "pool_fill_percent": 48.48387809187279,
+    "entropy_score_roll_mean": 0.9764090656713781,
+    "entropy_score_roll_std": 0.0009571220125571435,
+    "distribution_uniformity_roll_mean": 0.999028620565371,
+    "distribution_uniformity_roll_std": 8.280883170547502e-05,
+    "entropy_score_delta": 1.129328621908119e-06,
+    "distribution_uniformity_delta": 3.568904593640203e-08,
+    "lorenz_z": 23.84805709206367,
+    "lorenz_r": 26.505619058823953,
+    "lorenz_r_roll_mean": 26.589704654917547
+  },
+  "std": {
+    "entropy_score": 0.002549332190171037,
+    "distribution_uniformity": 9.909268549373009e-05,
+    "duplicate_rate": 1.0,
+    "pool_fill_percent": 28.808193360672284,
+    "entropy_score_roll_mean": 0.002168727604038359,
+    "entropy_score_roll_std": 0.0025677768953406327,
+    "distribution_uniformity_roll_mean": 0.00032411035752688745,
+    "distribution_uniformity_roll_std": 0.0024240141566703502,
+    "entropy_score_delta": 0.0004330448954386121,
+    "distribution_uniformity_delta": 1.6906803734460294e-05,
+    "lorenz_z": 8.263277900802883,
+    "lorenz_r": 8.858403216604255,
+    "lorenz_r_roll_mean": 1.9172154478220818
+  },
+  "features": [
+    "entropy_score",
+    "distribution_uniformity",
+    "duplicate_rate",
+    "pool_fill_percent",
+    "entropy_score_roll_mean",
+    "entropy_score_roll_std",
+    "distribution_uniformity_roll_mean",
+    "distribution_uniformity_roll_std",
+    "entropy_score_delta",
+    "distribution_uniformity_delta",
+    "lorenz_z",
+    "lorenz_r",
+    "lorenz_r_roll_mean"
+  ],
+  "anomaly_threshold": 0.6269592642784119,
+  "motion_threshold": 0.1260585267394747,
+  "input_dim": 780,
+  "window": 60,
+  "backend": "autoencoder+motion"
+}
