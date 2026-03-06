@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+# No set -e: background process exits must not kill the whole script
 
 echo "Starting KAIROS..."
 
@@ -16,6 +16,9 @@ echo "[2/3] Starting backend on http://localhost:8001 ..."
 python -m uvicorn kairos.server.main:app --host 0.0.0.0 --port 8001 --reload &
 BACKEND_PID=$!
 echo "      Backend PID: $BACKEND_PID"
+
+# Give uvicorn 2 seconds to bind before starting the frontend
+sleep 2
 
 # Start React frontend (frontend lives at project root)
 echo "[3/3] Starting frontend on http://localhost:3000 ..."

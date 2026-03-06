@@ -29,8 +29,8 @@ class ReactionDiffusionEngine(BaseChaosEngine):
         # On a pixel-unit grid (dx=1), these values produce stable, beautiful spot patterns.
         self.Du = 0.2097
         self.Dv = 0.1050
-        self.dt = 1.0
-        self._steps_per_tick = 15  # more steps per tick → patterns develop faster
+        self.dt = 0.5          # dt=1.0 drove U→0 in a single step when V≈1, killing autocatalysis
+        self._steps_per_tick = 8   # 0.5 × 8 × 50 Hz = 200 sim-time/sec — stable and visible
 
         # Initialize grids: U=1 (chemical A), V=0 (chemical B)
         U = np.ones((self.N, self.N), dtype=np.float64)
@@ -38,17 +38,19 @@ class ReactionDiffusionEngine(BaseChaosEngine):
 
         rng = np.random.default_rng()
 
-        # Center 8×8 seed patch
+        # Small center seed — surrounding U stays ≈1 so the autocatalytic
+        # front always has fresh fuel.  The previous 8×8 + 8 extra seeds
+        # depleted U across the whole grid before spots could self-sustain.
         half = self.N // 2
-        U[half - 4 : half + 4, half - 4 : half + 4] = 0.50
-        V[half - 4 : half + 4, half - 4 : half + 4] = 0.25 + rng.uniform(-0.05, 0.05, (8, 8))
+        U[half - 2 : half + 2, half - 2 : half + 2] = 0.50
+        V[half - 2 : half + 2, half - 2 : half + 2] = 0.30 + rng.uniform(-0.05, 0.05, (4, 4))
 
-        # 8 additional random 4×4 seed patches — more seeds → faster visible patterns
-        for _ in range(8):
-            rx = int(rng.integers(4, self.N - 4))
-            ry = int(rng.integers(4, self.N - 4))
-            U[rx : rx + 4, ry : ry + 4] = 0.50
-            V[rx : rx + 4, ry : ry + 4] = 0.25 + rng.uniform(-0.05, 0.05, (4, 4))
+        # 3 small satellite seeds (was 8 large patches)
+        for _ in range(3):
+            rx = int(rng.integers(6, self.N - 6))
+            ry = int(rng.integers(6, self.N - 6))
+            U[rx : rx + 3, ry : ry + 3] = 0.50
+            V[rx : rx + 3, ry : ry + 3] = 0.30 + rng.uniform(-0.05, 0.05, (3, 3))
 
         self._U = U
         self._V = V
@@ -68,7 +70,7 @@ class ReactionDiffusionEngine(BaseChaosEngine):
     def tick(self):
         """
         Advance the Gray-Scott simulation by _steps_per_tick steps.
-        Uses a stable dt=0.2 to prevent numerical blow-up.
+        Uses dt=0.5 to prevent numerical blow-up from over-consuming U.
         """
         with self._lock:
             U = self._U.copy()
@@ -88,6 +90,21 @@ class ReactionDiffusionEngine(BaseChaosEngine):
         if not (np.isfinite(U).all() and np.isfinite(V).all()):
             U = np.where(np.isfinite(U), U, 1.0)
             V = np.where(np.isfinite(V), V, 0.0)
+
+        # Resurrection: if V has died (patterns extinguished), restart from scratch.
+        # This prevents the canvas from going blank on long runs.
+        if V.max() < 0.02:
+            rng = np.random.default_rng()
+            U = np.ones((self.N, self.N), dtype=np.float64)
+            V = np.zeros((self.N, self.N), dtype=np.float64)
+            half = self.N // 2
+            U[half - 2 : half + 2, half - 2 : half + 2] = 0.50
+            V[half - 2 : half + 2, half - 2 : half + 2] = 0.30 + rng.uniform(-0.05, 0.05, (4, 4))
+            for _ in range(3):
+                rx = int(rng.integers(6, self.N - 6))
+                ry = int(rng.integers(6, self.N - 6))
+                U[rx : rx + 3, ry : ry + 3] = 0.50
+                V[rx : rx + 3, ry : ry + 3] = 0.30 + rng.uniform(-0.05, 0.05, (3, 3))
 
         with self._lock:
             self._U = U
